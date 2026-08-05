@@ -4,8 +4,9 @@
 This a simple implementation of **Tetris** written in pure `Python`.
 The only dependency is `pygame-ce`. 
 
-![Tetris 1](assets/screenshots/sample.mp4)
-![Tetris 2](assets/screenshots/image.png)
+https://github.com/user-attachments/assets/68cebf51-8430-4147-9704-25a14c0bc800
+
+![Tetris 1](assets/screenshots/image.png)
 
 ## Key Features
 - Coded in pure `Python`
