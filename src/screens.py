@@ -14,7 +14,8 @@ class Game:
     
     def __init__(self, config):
         self.config = config
-        self.tetris = config.tetris
+        self.config.tetris = config.tetris
+        self.audio = config.audio
 
         self.move_block_interval = 900 # milliseconds
         self.dec_interval = 20 # milliseconds
@@ -28,7 +29,6 @@ class Game:
         self.time_counter = 0
         self.max_time_delta = 1000
 
-        self.MOVE_DOWN = pygame.event.custom_type()
 
 
     def update_label_surfaces(self):
@@ -48,8 +48,19 @@ class Game:
         self.hold_label_surface = self.font.render(
             "Hold", True, COLOR_FONT, COLOR_PANEL)
 
-    def quit(self):
+    def quit(self, state):
+        self.config.state = state
         self.running = False
+        if state == STATE_GAMEOVER:
+            self.audio.play("game over")
+        elif state == STATE_GAME:
+            w = self.config.tetris.w
+            h = self.config.tetris.h
+            d = self.config.tetris.difficulty
+            self.config.tetris = TetrisBoard(w, h, d)
+        elif state == STATE_PAUSE:
+            pass
+            
 
     def run_loop(self):
 
@@ -61,14 +72,13 @@ class Game:
 
             # This part automatically calculates times to uptade
             # bock falling
-            delta = self.max_time_delta//(self.tetris.difficulty/10+1)
+            delta = self.max_time_delta//((self.config.tetris.difficulty + self.config.tetris.score)/15+1)
             if self.time_counter > delta:
                 self.time_counter = 0
-                self.tetris.update()
+                self.config.tetris.update()
                 self.update_render = True
-                if self.tetris.is_gameover:
-                    self.config.state = STATE_GAMEOVER
-                    self.quit()
+                if self.config.tetris.is_gameover:
+                    self.quit(STATE_GAMEOVER)
 
             # Check if necesary to render, for saving energy and cpu
             if self.update_render:
@@ -96,14 +106,14 @@ class Game:
         for x in range(brdw):
             for y in range(brdh):
                 pygame.draw.rect(window,
-                    COLOR_BLOCK[self.tetris.board[y][x]],
+                    COLOR_BLOCK[self.config.tetris.board[y][x]],
                     pygame.Rect( bsz*x + x0, bsz*y + y0, bsz, bsz)
                                  )
         # rendering falling block
-        fbt = self.tetris.block_falling_type
-        fbx = self.tetris.block_falling_x
-        fby = self.tetris.block_falling_y
-        fbr = self.tetris.block_falling_r
+        fbt = self.config.tetris.block_falling_type
+        fbx = self.config.tetris.block_falling_x
+        fby = self.config.tetris.block_falling_y
+        fbr = self.config.tetris.block_falling_r
         for x, y in BLOCKS_ROTS[fbt][fbr]:
             pygame.draw.rect( window, COLOR_BLOCK[fbt],
                 pygame.Rect(
@@ -157,18 +167,19 @@ class Game:
         # rendering next block label
         window.blit(nxtlbl_sfc, (x1 - nxtlbl_sfc.width/2, y2))
 
+        pbsz = min(scrn_h*0.06, scrn_w*0.03)
         # rendering next block background
         pygame.draw.rect(window, COLOR_BLOCK[BLOCK_NONE],
             pygame.Rect(
-                x1 - bsz * 2.25,  y2 + nxtlbl_sfc.height,
-                bsz * 4.5, bsz * 4.5))
+                x1 - pbsz * 2.25,  y2 + nxtlbl_sfc.height,
+                pbsz * 4.5, pbsz * 4.5))
         # render next block
         bct = self.config.tetris.block_next_type
         for x,y in BLOCKS_ROTS[bct][0]:
              pygame.draw.rect(window, COLOR_BLOCK[bct],
-                (x1 + bsz * (-BLOCK_WIDTHS[bct]/2 + x),
-                y2 + nxtlbl_sfc.height + bsz * (2.25 + y - BLOCK_HEIGHTS[bct]/2),
-                 bsz, bsz))
+                (x1 + pbsz * (-BLOCK_WIDTHS[bct]/2 + x),
+                y2 + nxtlbl_sfc.height + pbsz * (2.25 + y - BLOCK_HEIGHTS[bct]/2),
+                 pbsz, pbsz))
 
 
         # rendering hold block label
@@ -179,65 +190,80 @@ class Game:
         # rendering hold_block background
         pygame.draw.rect(window, COLOR_BLOCK[BLOCK_NONE],
             pygame.Rect(
-                x2 - bsz * 2.25,  y2 + hldlbl_sfc.height,
-                bsz * 4.5, bsz * 4.5))
+                x2 - pbsz * 2.25,  y2 + hldlbl_sfc.height,
+                pbsz * 4.5, pbsz * 4.5))
         # rendering hold block
         bht = self.config.tetris.block_held_type
         for x,y in BLOCKS_ROTS[bht][0]:
-             pygame.draw.rect(window, COLOR_BLOCK[bht],
-             (x2 + bsz * (-BLOCK_WIDTHS[bht]/2 + x),
-                 y2 + hldlbl_sfc.height + bsz * (2.25 + y - BLOCK_HEIGHTS[bht]/2),
-                 bsz, bsz))
+            color = COLOR_BLOCK[bht]
+            if not self.config.tetris.can_swap_blocks:
+                color = tuple(map(lambda i: int(i*0.4), color))
+            pygame.draw.rect(window, color,
+             (x2 + pbsz * (-BLOCK_WIDTHS[bht]/2 + x),
+                 y2 + hldlbl_sfc.height + pbsz * (2.25 + y - BLOCK_HEIGHTS[bht]/2),
+                 pbsz, pbsz))
 
         pygame.display.flip()
 
 
     def update_score_surface(self):
         self.score_points_surface = self.font.render(
-            f'{self.tetris.score}', True, COLOR_FONT)
+            f'{self.config.tetris.score}', True, COLOR_FONT)
 
     def update_lines_surface(self):
         self.lines_points_surface = self.font.render(
-            f'{self.tetris.lines}', True, COLOR_FONT)
+            f'{self.config.tetris.lines}', True, COLOR_FONT)
 
     def handle_events(self):
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
-                self.config.state = STATE_QUIT
-                self.quit()
+                self.quit(STATE_QUIT)
 
             elif ev.type == pygame.KEYDOWN:
                 if ev.key == pygame.K_p:
-                    self.config.state = STATE_PAUSE
-                    self.quit()
-
+                    self.quit(STATE_PAUSE)
+                
+                # Displace falling block to left and right
                 elif ev.key == pygame.K_LEFT or ev.key == pygame.K_h:
-                    self.tetris.displace_block_falling(-1,0)
+                    if self.config.tetris.displace_block_falling(-1,0):
+                        self.audio.play("displace")
                 elif ev.key == pygame.K_RIGHT or ev.key == pygame.K_l:
-                    self.tetris.displace_block_falling(1,0)
+                    if self.config.tetris.displace_block_falling(1,0):
+                        self.audio.play("displace")
                 # Move tetromino down until finds floor
                 elif ev.key == pygame.K_SPACE or ev.key == pygame.K_u:
-                    while self.tetris.update():
+                    while self.config.tetris.update():
                         self.render()
                         pygame.time.delay(2)
-                    if self.tetris.is_gameover:
-                        self.config.state = STATE_GAMEOVER
-                        self.quit()
+                    self.audio.play('drop')
+                    if self.config.tetris.is_gameover:
+                        self.quit(STATE_GAMEOVER)
                 # Move tetromino down
                 elif ev.key == pygame.K_DOWN or ev.key == pygame.K_j:
-                    self.tetris.update()
-                    if self.tetris.is_gameover:
-                        self.config.state = STATE_GAMEOVER
-                        self.quit()
+                    self.config.tetris.update()
+                    if self.config.tetris.is_gameover:
+                        self.quit(STATE_GAMEOVER)
                 # Rotates tetromino
                 elif ev.key == pygame.K_UP or ev.key == pygame.K_k:
-                    self.tetris.rotate_block_falling(1)
+                    if self.config.tetris.rotate_block_falling(1):
+                        self.audio.play("rotate")
                 elif ev.key == pygame.K_c or ev.key == pygame.K_i:
                     # Swaps falling and held blocks
-                    self.config.tetris.interchange()
+                    if self.config.tetris.interchange():
+                        self.audio.play("interchange")
+                    else:
+                        self.audio.play("deny")
+
+                # exit app
                 elif ev.key == pygame.K_q:
                     self.config.state = STATE_QUIT
                     self.quit()
+                # toggle audio
+                elif ev.key == pygame.K_m:
+                    self.audio.mute = not self.audio.mute
+
+                elif ev.key == pygame.K_r:
+                    self.quit(STATE_GAME)
 
                 self.update_score_surface()
                 self.update_lines_surface()
@@ -256,325 +282,196 @@ class Game:
 
 class Pause:
     
-    def __init__(self, scrn, clock):
-        self.window = scrn
-        scrn_w = self.window.width
-        scrn_h = self.window.height
-        self.clock = clock
+    def __init__(self, config):
+        self.config = config
 
-        self.line_color = 255, 255, 255
-        self.rect_color = 255, 255, 255
-
-        self.left_side_keys = 'p', 'r', 'q'
-        self.left_side_labels = "Resume", "Retart", "Quit"
-
-        self.right_side_keys = (
-            ('' , '^',  ''), 
-            ('<', 'v', '>'))
-        self.right_side_labels = (
-            ("", "Rotate", ""),
-            ("Left", "Down", "Right"))
-
-        self.right_side_keys2 = 'c', '       space       '
-        self.right_side_labels2 = "Interchange", "Drop"
-
-    def start_loop(self):
-        self.update_scales()
-        pygame.display.set_caption("Pause")
-        self.running = True
-
-        while self.running:
-            self.handle_events()
-            self.update_state()
-            self.render()
-            self.clock.tick(MAX_FPS)
-        else:
-            return self.return_vals
-
-    def render(self):
-
-        self.window.fill(COLOR_BACKGROUND)
-
-        self.window.blit(self.pause_label_sfc,
-            (scrn_w*0.5 - self.pause_label_w*0.5, scrn_h*0.1))
-
-        pygame.draw.line(self.window,
-            self.line_color,
-            (scrn_w*0.5, scrn_h*0.1 + self.pause_label_h), # start point
-            (scrn_w*0.5, scrn_h*0.9), width=2
-            )
-
-        n_items = 3
-        items = zip(
-            self.left_side_keys_sfc,
-            self.left_side_labels_sfc,
-            range(n_items))
-        for ksfc, lblsfc, i in items:
-            kw = ksfc.width
-            kh = ksfc.height
-            dy = (scrn_h*0.8 - self.pause_label_h) / (n_items + 1)
-            self.window.blit(ksfc,
-                (scrn_w*0.1 - kw*0.5, scrn_h*0.2 + self.pause_label_h + i*dy))
-            self.window.blit(lblsfc,
-                (scrn_w*0.2 + kw, scrn_h*0.2 + self.pause_label_h + i*dy))
-            pygame.draw.rect(
-                self.window, self.rect_color,
-                pygame.Rect(scrn_w*0.1 - kh*0.5, scrn_h*0.2 + self.pause_label_h + i*dy, kh, kh), width=self.ln_w
+        self.title = "Pause"
+        self.keys_bindings = (
+                ('h | LEFT', 'Move left'),
+                ('l | RIGHT', 'Move right'),
+                ('j | DOWN', 'Move down'),
+                ('k | UP', 'Move up'),
+                ('p', 'Pause | Resume Game'),
+                ('c | i', 'Interchange blocks'),
+                ('u | SPACE', 'Drop block'),
+                ('m', 'Mute | Unmute sound'),
+                ('r', 'Restart game'),
+                ('q', 'Quit game'),
                 )
 
-        dy = (scrn_h*0.8 - self.pause_label_h) / (n_items + 1)
+        st, nd = 0.25, 0.95
+        self.keys_bindings_pos = tuple(
+                (0.33, 0.55, st + y*(nd-st)/len(self.keys_bindings))
+                for y in range(len(self.keys_bindings))
+                )
 
-        n_items = 3
-        items = zip(
-            self.right_side_keys_sfc,
-            self.right_side_labels_sfc,
-            range(n_items))
-        for k_sfcs, lbl_sfcs, i in items:
-            n_subitems = 3
-            subitems = zip(k_sfcs, lbl_sfcs, range(n_subitems))
-            for ksfc, lblsfc, j in subitems:
-                kh = ksfc.height
-                kw = ksfc.width
-                self.window.blit(ksfc,
-                    (scrn_w/8 * (5+j) - kw*0.5, scrn_h*0.1 + self.pause_label_h + (i+1)*dy - kh))
-                self.window.blit(lblsfc,
-                    (scrn_w/8 * (5+j) - lblsfc.width*0.5, scrn_h*0.1 + self.pause_label_h + (i+1)*dy))
-                if self.right_side_keys[i][j]:
-                    pygame.draw.rect(self.window, self.rect_color,
-                        pygame.Rect(scrn_w/8 * (5+j) - kh*0.5, scrn_h*0.1 + self.pause_label_h + (i+1)*dy - kh, kh, kh), width=self.ln_w)
+        self.update_scales()
+        self.update_render = True
 
-        n_items = 2
-        items = zip(
-            self.right_side_keys2_sfc,
-            self.right_side_labels2_sfc,
-            range(n_items))
-        for ksfc, lblsfc, i in items:
-            kw = ksfc.width
-            kh = ksfc.height
-            self.window.blit(ksfc,
-                (scrn_w/6 * (4+i) - kw*0.5, scrn_h*0.15 + self.pause_label_h + 3*dy - kh))
-            self.window.blit(lblsfc,
-                (scrn_w/6 * (4+i) - lblsfc.width*0.5, scrn_h*0.15 + self.pause_label_h + 3*dy))
-            rw = max(kh,kw)
-            pygame.draw.rect(self.window, self.rect_color,
-                        pygame.Rect(scrn_w/6 * (4+i) - max(kh,kw)*0.5, scrn_h*0.15 + self.pause_label_h + 3*dy - kh, rw, kh), width=self.ln_w)
+    def run_loop(self):
+        pygame.display.set_caption("Pause")
+
+        self.running = True
+        while self.running:
+            self.handle_events()
+            if self.update_render:
+                self.render()
+            self.config.clock.tick(MAX_FPS)
+
+    def render(self):
+        window = self.config.window
+        ww,wh = pygame.display.get_window_size()
+
+        window.fill(COLOR_BACKGROUND)
+        window.blit(self.title_surface,
+            ((ww - self.title_surface.width)/2,
+            wh*0.1 - self.title_surface.height/2))
+
+        for pos, sfc in zip(self.keys_bindings_pos, self.keys_surfaces):
+            y0 = wh*pos[2] - sfc[0].height/2
+            x0 = ww*pos[0]
+            window.blit(sfc[0],(x0 - sfc[0].width/2, y0))
+            window.blit(sfc[1],(ww*pos[1], y0))
 
         pygame.display.flip()
 
     def update_scales(self):
+        w,h = pygame.display.get_window_size()
+        ref = min(w,h)
+        font_title = pygame.font.Font(FONT_FILEPATH, int(ref*0.15))
+        self.title_surface = font_title.render(
+                self.title, True, COLOR_FONT, COLOR_BACKGROUND)
 
-        scrn_w = self.window.width
-        scrn_h = self.window.height
-        ref = min(scrn_w, scrn_h)
-        self.font1_sz = ref//6
-        self.font2_sz = ref//10
-        self.font3_sz = ref//15
-        self.font4_sz = ref//17
-        self.ln_w = max(1, ref//150)
+        font_keys = pygame.font.Font(FONT_FILEPATH, int(ref*0.05))
+        self.keys_surfaces = tuple(
+                (
+                font_keys.render(k, True, COLOR_FONT, COLOR_BACKGROUND),
+                font_keys.render(t, True, COLOR_FONT, COLOR_BACKGROUND)
+                    )
+                for k, t in self.keys_bindings
+                )
 
-        self.font1 = pygame.font.Font(FONT_FILEPATH, self.font1_sz)
-        self.font2 = pygame.font.Font(FONT_FILEPATH, self.font2_sz)
-        self.font3 = pygame.font.Font(FONT_FILEPATH, self.font3_sz)
-        self.font4 = pygame.font.Font(FONT_FILEPATH, self.font4_sz)
-
-        self.pause_label_sfc = self.font1.render(
-            "Pause", True, COLOR_FONT, COLOR_BACKGROUND)
-        self.pause_label_w = self.pause_label_sfc.width
-        self.pause_label_h = self.pause_label_sfc.height
-
-        self.left_side_keys_sfc = tuple(map(
-            lambda k: self.font2.render(k, True, COLOR_FONT, COLOR_BACKGROUND), self.left_side_keys))
-        self.left_side_labels_sfc = tuple(map(
-            lambda lbl: self.font2.render(lbl, True, COLOR_FONT, COLOR_BACKGROUND), self.left_side_labels))
-
-        self.right_side_keys_sfc = tuple(map(
-            lambda ks: tuple(map(lambda k: self.font3.render(k, True, COLOR_FONT, COLOR_BACKGROUND), ks)), self.right_side_keys))
-        self.right_side_labels_sfc = tuple(map(
-            lambda lbls: tuple(map(lambda lbl: self.font3.render(lbl, True, COLOR_FONT, COLOR_BACKGROUND), lbls)), self.right_side_labels))
-
-        self.right_side_keys2_sfc = tuple(map(lambda k: self.font3.render(k, True, COLOR_FONT, COLOR_BACKGROUND), self.right_side_keys2))
-        self.right_side_labels2_sfc = tuple(map(lambda lbl: self.font4.render(lbl, True, COLOR_FONT, COLOR_BACKGROUND), self.right_side_labels2))
+    def quit(self, state:int):
+        self.config.state = state
+        self.running = False
 
     def handle_events(self):
         for ev in pygame.event.get():
 
             if ev.type == pygame.QUIT:
-                exit(0)
+                self.quit(STATE_QUIT)
 
             elif ev.type == pygame.KEYDOWN:
 
                 if ev.key == pygame.K_p:
-                    self.running = False
-                    self.return_vals = GAME, {"init new game": False}
-
-                elif ev.key == pygame.K_r:
-                    self.running = False
-                    self.return_vals = GAME, {"init new game": True}
+                    self.quit(STATE_GAME)
 
                 elif ev.key == pygame.K_q:
-                    exit(0)
+                    self.quit(STATE_QUIT)
 
             elif ev.type == pygame.VIDEORESIZE:
-                scrn_w, scrn_h = ev.size
+                self.update_render = True
                 self.update_scales()
-
-    def update_state(self):
-        pass
-
 
 class GameOver:
     
-    def __init__(self, scrn, clock):
-        # related variables with pygame
-        self.window = scrn
-        scrn_w = scrn.width
-        scrn_h = scrn.height
-        self.clock = clock
+    def __init__(self, config):
+        self.config = config
 
-        # variables score and line points
-        self.tetris.score = 0
-        self.score.lines = 0
-
-        self.time_count = 0
-        self.bip_interval = 800 # milliseconds
         # it controls wherther "Press any Key" is displayed or not
         self.visible = True
+        pygame.time.set_timer(self.config.blink_event, 800)
 
-        COLOR_BACKGROUND =   0,   0,   0
-        COLOR_FONT  = 255, 255, 255
-
-    def start_loop(self):
-
-        self.update_scales()
-        pygame.display.set_caption("Game Over")
-        self.running = True
-        self.time_count = pygame.time.get_ticks()
-
-        while self.running:
-            self.handle_events()
-            self.update_state()
-            self.render()
-            self.clock.tick(MAX_FPS)
-        else:
-            return self.return_vals
-
-    def render(self):
-        self.window.fill(COLOR_BACKGROUND)
-
-        # rendering game over label
-        self.window.blit(
-            self.game_over_label_sfc,
-            (scrn_w*0.5 - self.game_over_label_w*0.5,
-            scrn_h*0.05)
-            )
-
-        # rendering score label and score points
-        self.window.blit(
-            self.tetris.score_label_sfc,
-            (scrn_w*0.25 - self.tetris.score_label_w*0.5,
-            scrn_h*0.5 - self.tetris.score_label_h*0.75)
-            )
-
-        self.window.blit(
-            self.tetris.score_points_sfc,
-            (scrn_w*0.25 - self.tetris.score_points_w*0.5,
-            scrn_h*0.5 + self.tetris.score_label_h*0.25)
-            )
-
-        # rendering lines label and lines points
-        self.window.blit(
-            self.score.lines_label_sfc,
-            (scrn_w*0.75 - self.score.lines_label_w*0.5,
-            scrn_h*0.5 - self.score.lines_label_h*0.75)
-            )
-
-        self.window.blit(
-            self.score.lines_points_sfc,
-            (scrn_w*0.75 - self.score.lines_points_w*0.5,
-            scrn_h*0.5 + self.score.lines_label_h*0.25)
-            )
-
-        # renderng "press any key to continue" label
-        if self.visible:
-            self.window.blit(
-                self.press_label_sfc,
-                (scrn_w*0.5 - self.press_label_w*0.5,
-                scrn_h - self.press_label_h*1.5)
+        self.labels = (
+                "Game over!",
+                f"Score: {self.config.tetris.score} | Lines: {self.config.tetris.lines}",
+                "Press any key"
                 )
 
+        self.labels_pos = (0.5, 0.25), (0.5, 0.5), (0.5, 0.75)
+        self.labels_scales = 0.15, 0.16, 0.14
+        self.labels_blink = [True, True, False]
 
+        self.update_label_scales()
+
+        self.update_render = True
+
+
+    def run_loop(self):
+
+        pygame.display.set_caption("Game Over")
+
+        self.running = True
+        while self.running:
+            self.handle_events()
+            if self.update_render:
+                self.render()
+                self.update_render = False
+            self.config.clock.tick(MAX_FPS)
+
+    def quit(self, new_state:int):
+        self.running = False
+        self.config.state = new_state
+        pygame.time.set_timer(self.config.blink_event, 0)
+        if new_state == STATE_GAME:
+            w = self.config.tetris.w
+            h = self.config.tetris.h
+            d = self.config.tetris.difficulty
+            self.config.tetris = TetrisBoard(w, h, d)
+        elif new_state == STATE_QUIT:
+            pass
+
+
+    def render(self):
+
+        window = self.config.window
+        window.fill(COLOR_BACKGROUND)
+
+        scrn_w, scrn_h = pygame.display.get_window_size()
+
+        for pos, sfc, blink in zip(self.labels_pos, self.labels_surface, self.labels_blink):
+            x = scrn_w * pos[0] - sfc.width*0.5
+            y = scrn_h * pos[1] - sfc.height*0.5
+            if blink or self.visible:
+                window.blit(sfc, (x,y))
+        
         pygame.display.flip()
 
-    def update_scales(self):
+    def update_label_scales(self):
         # this function update the dsplayed fonts sizes
         # when window is resized
-        scrn_w = self.window.width
-        scrn_h = self.window.height
-        ref = min(scrn_h, scrn_w)
-        font1_sz = ref // 5
-        font2_sz = ref // 7
-        font3_sz = ref // 9
+        scrn_w, scrn_h = pygame.display.get_window_size()
+        ref = min(scrn_w, scrn_h)
 
-        self.font1 = pygame.font.Font(FONT_FILEPATH, font1_sz)
-        self.font2 = pygame.font.Font(FONT_FILEPATH, font2_sz)
-        self.font3 = pygame.font.Font(FONT_FILEPATH, font3_sz)
+        fonts = [pygame.font.Font(FONT_FILEPATH, int(ref* i)) for i in self.labels_scales]
 
-        self.game_over_label_sfc = self.font1.render(
-            "Game Over!", True, COLOR_FONT, COLOR_BACKGROUND)
-        self.game_over_label_w = self.game_over_label_sfc.width
-        self.game_over_label_h = self.game_over_label_sfc.height
-
-        self.tetris.score_label_sfc = self.font2.render(
-            "Score", True, COLOR_FONT, COLOR_BACKGROUND)
-        self.tetris.score_label_w = self.tetris.score_label_sfc.width
-        self.tetris.score_label_h = self.tetris.score_label_sfc.height
-
-        self.score.lines_label_sfc = self.font2.render(
-            "lines", True, COLOR_FONT, COLOR_BACKGROUND)
-        self.score.lines_label_w = self.score.lines_label_sfc.width
-        self.score.lines_label_h = self.score.lines_label_sfc.height
-
-        self.tetris.score_points_sfc = self.font2.render(
-            f"{self.tetris.score}", True, COLOR_FONT, COLOR_BACKGROUND)
-        self.tetris.score_points_w = self.tetris.score_points_sfc.width
-        self.tetris.score_points_h = self.tetris.score_points_sfc.height
-
-        self.score.lines_points_sfc = self.font2.render(
-            f"{self.score.lines}", True, COLOR_FONT, COLOR_BACKGROUND)
-        self.score.lines_points_w = self.score.lines_points_sfc.width
-        self.score.lines_points_h = self.score.lines_points_sfc.height
-
-        self.press_label_sfc = self.font3.render(
-            "Press any key to continue", True, COLOR_FONT, COLOR_BACKGROUND)
-        self.press_label_w = self.press_label_sfc.width
-        self.press_label_h = self.press_label_sfc.height
+        self.labels_surface = [
+                f.render(t, True, COLOR_FONT, COLOR_BACKGROUND) 
+                for f,t in zip(fonts, self.labels)
+                ]
 
     def handle_events(self):
         for ev in pygame.event.get():
 
             if ev.type == pygame.QUIT:
-                exit(0)
+                self.quit(STATE_QUIT)
 
-            if ev.type == pygame.KEYDOWN:
+            elif ev.type == pygame.KEYDOWN:
 
                 if ev.key == pygame.K_q:
-                    exit(0)
+                    self.quit(STATE_QUIT)
                 else:
-                    self.running = False
-                    self.return_vals = GAME, {"init new game": True}
+                    self.quit(STATE_GAME)
 
-            if ev.type == pygame.VIDEORESIZE:
-                scrn_w, scrn_h = ev.size
-                self.update_scales()
+
+            elif ev.type == pygame.VIDEORESIZE:
+                self.update_label_scales()
+
+            elif ev.type == self.config.blink_event:
+                self.visible = not self.visible
+                self.update_render = True
+
+            # End events type
             else:
                 pass
 
-    def update_state(self):
-        if pygame.time.get_ticks() - self.time_count >= self.bip_interval:
-            self.visible = not self.visible
-            self.time_count = pygame.time.get_ticks()
-
-    def pass_kwargs(self, **kwargs):
-        # get score and lines contained in kwargs
-        self.tetris.score = kwargs['score']
-        self.score.lines = kwargs['lines']

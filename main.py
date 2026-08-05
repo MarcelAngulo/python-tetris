@@ -7,6 +7,7 @@ import argparse
 from src.screens import GameOver, Game, Pause
 from src.constants import *
 from src.tetrisboard import TetrisBoard
+from src.audio import AudioManager
 
 from dataclasses import dataclass
 
@@ -14,6 +15,8 @@ from dataclasses import dataclass
 class GlobalConfig:
     window: pygame.Surface
     clock: pygame.Time.Clock
+    audio: AudioManager
+    blink_event: int
     state: int
     tetris: TetrisBoard
 
@@ -34,16 +37,19 @@ def main():
     parser.add_argument('--height', '-H', type=positive_int, default=20,
         help="The height of the board. Default is 20")
     parser.add_argument('--difficulty', '-d', type=positive_int, default=1,
-        help="The difficulty of the game. From 1 (easier) to 10 (harder). Default is 1")
-
+        help="The difficulty of the game, starting with 1 (the easiest) to larger numbers. Default is 1")
     args = parser.parse_args()
-    
 
     pygame.init()
+    pygame.mixer.init(
+            frequency=44100,size=-16,
+            channels=2,buffer=512)
+
 
     config = GlobalConfig(
             pygame.display.set_mode((600, 500), pygame.RESIZABLE),
-            pygame.time.Clock(), STATE_GAME,
+            pygame.time.Clock(), AudioManager(), 
+            pygame.event.custom_type(), STATE_GAME,
             TetrisBoard(args.width, args.height, args.difficulty)
             )
 
@@ -59,17 +65,10 @@ def main():
         elif config.state == STATE_QUIT:
             running = False
 
+    pygame.mixer.quit()
     pygame.quit()
     sys.exit()
 
 if __name__ == '__main__':
     main()
 
-'''
-TODO:
-    reorganize Pause (just a list of commands), Game over, Counter
-    on hold (dark a little to indicate in cannot change, and sound)
-    add sound for row destroyed
-    add sound when rotating
-    add mute button
-    '''

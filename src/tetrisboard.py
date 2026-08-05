@@ -56,7 +56,7 @@ class TetrisBoard:
         self.is_gameover = not can_generate
         return can_generate
 
-    def interchange(self):
+    def interchange(self) -> bool:
         if self.can_swap_blocks:
             # When a new game starts, self.block_held_type == BLOCK_NONE
             # For this reason, first interchange fill simply replace
@@ -72,6 +72,9 @@ class TetrisBoard:
                 self.block_held_type = self.block_falling_type
                 self.get_new_block_falling()
             self.can_swap_blocks = False
+            return True
+        else:
+            return False
 
 
     # Generate a new block next
@@ -131,7 +134,6 @@ class TetrisBoard:
         else:
             self.fix_block_falling_into_board()
             self.score += 1
-            self.difficulty += 1
             self.delete_full_rows()
             self.get_new_block_falling()
         return can_move_down

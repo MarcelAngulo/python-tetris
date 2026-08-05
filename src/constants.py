@@ -1,8 +1,30 @@
 
 from pathlib import Path
 
+PATH_ROOT = Path(__file__).parent.parent
+PATH_ASSETS = PATH_ROOT / "assets"
+PATH_SOUNDS = PATH_ASSETS / "sounds"
+PATH_FONTS = PATH_ASSETS / "fonts"
+
 # constants
-FONT_FILEPATH = Path(__file__).parent.parent / "assets" / "fonts" / "BebasNeue-Regular.ttf"
+FONT_FILEPATH = PATH_FONTS / "BebasNeue-Regular.ttf"
+
+SOUND_NAMES = (
+        "displace", "rotate", "drop", "interchange",
+        "game over", "deny"
+        )
+SOUND_FILENAMES = (
+    "wood-click-1.wav",
+    "wood-click-2.wav",
+    "muted_thud_2.wav",
+    "singleding.ogg",
+    "error_01.wav",
+    "mutedcowbell-001.wav",
+)
+SOUND_FILEPATHS = {
+    sn: PATH_SOUNDS / sfn for sn, sfn in zip(SOUND_NAMES, SOUND_FILENAMES)
+        }
+
 
 STATE_GAME     = 0
 STATE_GAMEOVER = 1
