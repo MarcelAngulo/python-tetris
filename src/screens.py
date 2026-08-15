@@ -214,6 +214,11 @@ class Game:
         self.lines_points_surface = self.font.render(
             f'{self.config.tetris.lines}', True, COLOR_FONT)
 
+    def quit(self, state:int):
+        self.config.state = state
+        self.running = False
+
+
     def handle_events(self):
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
@@ -257,7 +262,7 @@ class Game:
                 # exit app
                 elif ev.key == pygame.K_q:
                     self.config.state = STATE_QUIT
-                    self.quit()
+                    self.quit(STATE_QUIT)
                 # toggle audio
                 elif ev.key == pygame.K_m:
                     self.audio.mute = not self.audio.mute
